@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmology - Interactive Constellation Poem</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Georgia', serif;
+            background: #1a2745;
+            color: #e8e8e8;
+            overflow: hidden;
+        }
+        
+        #container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #starfield {
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+        
+        #sidebar {
+            width: 350px;
+            background: rgba(20, 30, 50, 0.9);
+            padding: 30px;
+            overflow-y: auto;
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #a8c7ff;
+        }
+        
+        #poem-display {
+            font-size: 16px;
+            line-height: 1.8;
+            margin-bottom: 30px;
+            min-height: 300px;
+            color: #d4d4d4;
+            white-space: pre-wrap;
+        }
+        
+        .word {
+            display: inline;
+        }
+        
+        #constellation-keys {
+            margin-bottom: 25px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        
+        .key-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 8px;
+            gap: 8px;
+        }
+        
+        .key-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .key-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            margin-top: 4px;
+        }
+        
+        .key-text {
+            flex: 1;
+            color: #b8b8b8;
+            font-family: monospace;
+        }
+        
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 12px 20px;
+            font-size: 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+        
+        #undo-btn {
+            background: #4a5f8f;
+            color: white;
+        }
+        
+        #undo-btn:hover:not(:disabled) {
+            background: #5a6f9f;
+        }
+        
+        #undo-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        #new-line-btn {
+            background: #5f8f4a;
+            color: white;
+        }
+        
+        #new-line-btn:hover:not(:disabled) {
+            background: #6f9f5a;
+        }
+        
+        #new-line-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        #show-solution-btn {
+            background: #2d4a6f;
+            color: #a8c7ff;
+        }
+        
+        #show-solution-btn:hover {
+            background: #3d5a7f;
+        }
+        
+        #reset-btn {
+            background: #6f2d2d;
+            color: #ffb4b4;
+        }
+        
+        #reset-btn:hover {
+            background: #7f3d3d;
+        }
+        
+        .star {
+            cursor: pointer;
+            transition: all 0.2s;
+            pointer-events: bounding-box;
+        }
+        
+        .star text {
+            pointer-events: none;
+            paint-order: stroke fill;
+            stroke: #1a2745;
+            stroke-width: 3px;
+            stroke-linejoin: round;
+        }
+        
+        .star:hover {
+            filter: drop-shadow(0 0 12px currentColor);
+        }
+        
+        .star:hover circle {
+            r: 12;
+        }
+        
+        .star:hover text {
+            font-weight: bold;
+            font-size: 13px;
+        }
+        
+        .star.clicked circle {
+            opacity: 0.6;
+        }
+        
+        .star.clicked text {
+            opacity: 0.7;
+        }
+        
+        .connecting-line {
+            stroke-width: 2;
+            stroke-linecap: round;
+            opacity: 0.7;
+        }
+        
+        /* Shooting star animation */
+        @keyframes shootingStar {
+            0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
+            }
+            50% {
+                opacity: 1;
+            }
+            100% {
+                transform: translate(300px, -300px) scale(0.5);
+                opacity: 0;
+            }
+        }
+        
+        @keyframes starTrail {
+            0% {
+                transform: translate(0, 0);
+                opacity: 0.6;
+            }
+            100% {
+                transform: translate(300px, -300px);
+                opacity: 0;
+            }
+        }
+        
+        @keyframes starBurst {
+            0% {
+                transform: scale(0);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.5);
+                opacity: 0.8;
+            }
+            100% {
+                transform: scale(3);
+                opacity: 0;
+            }
+        }
+        
+        .shooting-star {
+            animation: shootingStar 2s ease-out forwards;
+            filter: drop-shadow(0 0 10px currentColor);
+        }
+        
+        .star-trail {
+            animation: starTrail 2s ease-out forwards;
+        }
+        
+        .star-burst {
+            animation: starBurst 1s ease-out forwards;
+        }
+        
+        /* Color-specific styles */
+        .color-orange { color: #ff9933; fill: #ff9933; stroke: #ff9933; }
+        .color-white { color: #e8e8e8; fill: #e8e8e8; stroke: #e8e8e8; }
+        .color-yellow { color: #ffeb3b; fill: #ffeb3b; stroke: #ffeb3b; }
+        .color-blue { color: #4fc3f7; fill: #4fc3f7; stroke: #4fc3f7; }
+        .color-red { color: #ff5252; fill: #ff5252; stroke: #ff5252; }
+        
+        #solution-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        #solution-content {
+            background: #1a2745;
+            padding: 40px;
+            border-radius: 10px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 2px solid #4a5f8f;
+        }
+        
+        #solution-content h2 {
+            color: #a8c7ff;
+            margin-bottom: 20px;
+        }
+        
+        #solution-content .constellation {
+            margin-bottom: 25px;
+        }
+        
+        #solution-content .constellation-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        
+        #solution-content .constellation-text {
+            line-height: 1.8;
+            font-size: 15px;
+        }
+        
+        #close-solution {
+            margin-top: 20px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="canvas-container">
+            <svg id="starfield"></svg>
+        </div>
+        
+        <div id="sidebar">
+            <h1>Cosmology</h1>
+            <div id="poem-display">
+                <em style="opacity: 0.6;">Click the stars to compose the poem...</em>
+            </div>
+            <div class="controls">
+                <button id="undo-btn" disabled>Undo Last Word</button>
+                <button id="new-line-btn" disabled>New Line</button>
+                <button id="show-solution-btn">Show Solution</button>
+                <button id="reset-btn">Reset All</button>
+            </div>
+            
+            <div id="constellation-keys">
+                <div class="key-item">
+                    <div class="key-dot color-orange"></div>
+                    <div class="key-text">T y m d q h j a t C s, b a B, h p b a b o f f f P R i a s u.</div>
+                </div>
+                <div class="key-item">
+                    <div class="key-dot color-white"></div>
+                    <div class="key-text">W b a m t a a, a r o f t t r i a s m.</div>
+                </div>
+                <div class="key-item">
+                    <div class="key-dot color-yellow"></div>
+                    <div class="key-text">"M o f / b i r l / l d b w / a o t e."</div>
+                </div>
+                <div class="key-item">
+                    <div class="key-dot color-blue"></div>
+                    <div class="key-text">A 5, I c a s-f j-s p, s's e t t l, P o t r.</div>
+                </div>
+                <div class="key-item">
+                    <div class="key-dot color-red"></div>
+                    <div class="key-text">H t m i t G a l a m t a t s s, t s, t w t l t t m m, m a u.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="solution-overlay">
+        <div id="solution-content">
+            <h2>The Complete Poem</h2>
+            <div class="constellation">
+                <div class="constellation-title color-orange">Orange Constellation:</div>
+                <div class="constellation-text">The year my dad quit his job at the Christian school, biology and Bible, he packed boxes and buckets of fossils fished from Peace River into a storage unit.</div>
+            </div>
+            <div class="constellation">
+                <div class="constellation-title color-white">White Constellation:</div>
+                <div class="constellation-text">Whale bones and mammoth teeth and ammonites, a review of flesh turned to rock in a surreal miracle.</div>
+            </div>
+            <div class="constellation">
+                <div class="constellation-title color-yellow">Yellow Constellation:</div>
+                <div class="constellation-text">"Millions of fossils/ buried in rock layers, laid down by water/ all over the earth."</div>
+            </div>
+            <div class="constellation">
+                <div class="constellation-title color-blue">Blue Constellation:</div>
+                <div class="constellation-text">Age 5, I composed a six-foot jumbo-size puzzle, sun's edge to the left, Pluto on the right.</div>
+            </div>
+            <div class="constellation">
+                <div class="constellation-title color-red">Red Constellation:</div>
+                <div class="constellation-text">He taught me it took God as long as me to assemble the solar system, the stars, that words take little time to make miracles, making and unmaking.</div>
+            </div>
+            <button id="close-solution" class="controls">Close</button>
+        </div>
+    </div>
+
+    <script>
+        // Word data from the spreadsheet
+        const wordData = [{"word":"ALL","x":11,"y":2,"color":"FFFFFF00"},{"word":"OVER","x":20,"y":3,"color":"FFFFFF00"},{"word":"WATER/","x":8,"y":4,"color":"FFFFFF00"},{"word":"MIRACLE","x":39,"y":5,"color":"Values must be of type <class 'str'>"},{"word":"HE","x":7,"y":6,"color":"FFFF0000"},{"word":"THE","x":29,"y":6,"color":"FFFFFF00"},{"word":"WHALE","x":43,"y":7,"color":"Values must be of type <class 'str'>"},{"word":"BY","x":10,"y":8,"color":"FFFFFF00"},{"word":"EARTH","x":34,"y":8,"color":"FFFFFF00"},{"word":"IN","x":38,"y":8,"color":"Values must be of type <class 'str'>"},{"word":"ROCK","x":36,"y":9,"color":"Values must be of type <class 'str'>"},{"word":"INTO","x":37,"y":10,"color":"Values must be of type <class 'str'>"},{"word":"MAMMOTH","x":42,"y":10,"color":"Values must be of type <class 'str'>"},{"word":"DOWN","x":13,"y":12,"color":"FFFFFF00"},{"word":"AND","x":40,"y":12,"color":"Values must be of type <class 'str'>"},{"word":"TOOK","x":14,"y":13,"color":"FFFF0000"},{"word":"TEETH","x":41,"y":13,"color":"Values must be of type <class 'str'>"},{"word":"MILLIONS","x":44,"y":13,"color":"FFFFFF00"},{"word":"TAUHT","x":10,"y":14,"color":"FFFF0000"},{"word":"IT","x":13,"y":15,"color":"FFFF0000"},{"word":"SURREAL","x":20,"y":15,"color":"Values must be of type <class 'str'>"},{"word":"REVIEW","x":35,"y":15,"color":"Values must be of type <class 'str'>"},{"word":"ANOTHER","x":22,"y":16,"color":"Values must be of type <class 'str'>"},{"word":"OF","x":38,"y":16,"color":"Values must be of type <class 'str'>"},{"word":"LAID","x":20,"y":17,"color":"FFFFFF00"},{"word":"GOD","x":24,"y":19,"color":"FFFF0000"},{"word":"A","x":32,"y":20,"color":"Values must be of type <class 'str'>"},{"word":"OF","x":54,"y":20,"color":"FFFFFF00"},{"word":"TURNED","x":30,"y":21,"color":"Values must be of type <class 'str'>"},{"word":"ME","x":30,"y":22,"color":"FFFF0000"},{"word":"AMMONITES,","x":35,"y":22,"color":"Values must be of type <class 'str'>"},{"word":"DAD","x":14,"y":23,"color":"FFFFC000"},{"word":"LAYERS/","x":32,"y":23,"color":"FFFFFF00"},{"word":"FLESH","x":34,"y":23,"color":"Values must be of type <class 'str'>"},{"word":"QUIT","x":18,"y":24,"color":"FFFFC000"},{"word":"AS","x":23,"y":24,"color":"FFFF0000"},{"word":"TO","x":37,"y":25,"color":"FFFF0000"},{"word":"FOSSILS/","x":60,"y":25,"color":"FFFFFF00"},{"word":"AND","x":42,"y":26,"color":"Values must be of type <class 'str'>"},{"word":"BONES","x":44,"y":27,"color":"Values must be of type <class 'str'>"},{"word":"MY","x":12,"y":28,"color":"FFFFC000"},{"word":"ROCK","x":42,"y":28,"color":"FFFFFF00"},{"word":"THE","x":44,"y":28,"color":"FFFF0000"},{"word":"YEAR","x":14,"y":29,"color":"FFFFC000"},{"word":"STORAGE","x":16,"y":29,"color":"FFFFC000"},{"word":"FOSSILS","x":17,"y":29,"color":"FFFFC000"},{"word":"A","x":18,"y":29,"color":"FFFFC000"},{"word":"FISHED","x":20,"y":29,"color":"FFFFC000"},{"word":"MAKE","x":21,"y":29,"color":"FFFF0000"},{"word":"ASSEMBLE","x":34,"y":29,"color":"FFFF0000"},{"word":"IN","x":58,"y":30,"color":"FFFFFF00"},{"word":"BURIED","x":60,"y":30,"color":"FFFFFF00"},{"word":"ME","x":24,"y":31,"color":"FFFF0000"},{"word":"SYSTEM,","x":39,"y":31,"color":"FFFF0000"},{"word":"STARS,","x":57,"y":31,"color":"FFFF0000"},{"word":"MIRACLES","x":21,"y":32,"color":"FFFF0000"},{"word":"HIS","x":23,"y":32,"color":"FFFFC000"},{"word":"LONG","x":25,"y":32,"color":"FFFF0000"},{"word":"AS","x":26,"y":32,"color":"FFFF0000"},{"word":"TO","x":24,"y":33,"color":"FFFF0000"},{"word":"THE","x":28,"y":33,"color":"FFFF0000"},{"word":"THAT","x":50,"y":33,"color":"FFFF0000"},{"word":"SOLAR","x":30,"y":34,"color":"FFFF0000"},{"word":"WORDS","x":31,"y":34,"color":"FFFF0000"},{"word":"AT","x":37,"y":34,"color":"FFFFC000"},{"word":"JOB","x":30,"y":35,"color":"FFFFC000"},{"word":"UNMAKING.","x":34,"y":35,"color":"FFFF0000"},{"word":"TAKE","x":31,"y":36,"color":"FFFF0000"},{"word":"TIME","x":24,"y":39,"color":"FFFF0000"},{"word":"FROM","x":21,"y":40,"color":"FFFFC000"},{"word":"MAKING","x":26,"y":40,"color":"FFFF0000"},{"word":"LITTLE","x":28,"y":40,"color":"FFFF0000"},{"word":"AND","x":31,"y":41,"color":"FFFF0000"},{"word":"PEACE","x":38,"y":42,"color":"FFFFC000"},{"word":"THE","x":39,"y":43,"color":"FFFFC000"},{"word":"INTO","x":19,"y":44,"color":"FFFFC000"},{"word":"BUCKETS","x":27,"y":44,"color":"FFFFC000"},{"word":"OF","x":16,"y":45,"color":"FFFFC000"},{"word":"HIS","x":27,"y":46,"color":"FFFFC000"},{"word":"AND","x":37,"y":46,"color":"FFFFC000"},{"word":"RIVER","x":39,"y":46,"color":"FFFFC000"},{"word":"PACKED","x":15,"y":47,"color":"FFFFC000"},{"word":"BOXES","x":37,"y":48,"color":"FFFFC000"},{"word":"HE","x":15,"y":50,"color":"FFFFC000"},{"word":"BIBLE,","x":17,"y":50,"color":"FFFFC000"},{"word":"CHRISTIAN","x":39,"y":50,"color":"FFFFC000"},{"word":"SCHOOL,","x":35,"y":51,"color":"FFFFC000"},{"word":"THE","x":12,"y":53,"color":"FFFFC000"},{"word":"UNIT,","x":14,"y":53,"color":"FFFFC000"},{"word":"AND","x":18,"y":53,"color":"FFFFC000"},{"word":"COMPOSED","x":27,"y":53,"color":"FF00B0F0"},{"word":"BIOLOGY","x":35,"y":53,"color":"FFFFC000"},{"word":"I","x":7,"y":54,"color":"FF00B0F0"},{"word":"A","x":44,"y":54,"color":"FF00B0F0"},{"word":"AGE","x":1,"y":56,"color":"FF00B0F0"},{"word":"5,","x":6,"y":56,"color":"FF00B0F0"},{"word":"SUN'S","x":19,"y":56,"color":"FF00B0F0"},{"word":"THE","x":22,"y":56,"color":"FF00B0F0"},{"word":"LEFT","x":44,"y":56,"color":"FF00B0F0"},{"word":"PUZZLE,","x":7,"y":57,"color":"FF00B0F0"},{"word":"RIGHT.","x":63,"y":58,"color":"FF00B0F0"},{"word":"THE","x":7,"y":59,"color":"FF00B0F0"},{"word":"EDGE","x":19,"y":59,"color":"FF00B0F0"},{"word":"TO","x":22,"y":59,"color":"FF00B0F0"},{"word":"ON","x":7,"y":60,"color":"FF00B0F0"},{"word":"PLUTO","x":44,"y":60,"color":"FF00B0F0"},{"word":"JUMBO-SIZE","x":7,"y":62,"color":"FF00B0F0"},{"word":"SIX-FOOT","x":44,"y":62,"color":"FF00B0F0"}];
+        
+        // Color mapping
+        const colorMap = {
+            'FFFFC000': 'orange',
+            'FFFF0000': 'red',
+            'FFFFFF00': 'yellow',
+            'FF00B0F0': 'blue',
+            'Values must be of type <class \'str\'>': 'white'
+        };
+        
+        // Solution order for validation
+        const solutions = {
+            orange: ["THE", "YEAR", "MY", "DAD", "QUIT", "HIS", "JOB", "AT", "THE", "CHRISTIAN", "SCHOOL,", "BIOLOGY", "AND", "BIBLE,", "HE", "PACKED", "BOXES", "AND", "BUCKETS", "OF", "FOSSILS", "FISHED", "FROM", "PEACE", "RIVER", "INTO", "A", "STORAGE", "UNIT,"],
+            white: ["WHALE", "BONES", "AND", "MAMMOTH", "TEETH", "AND", "AMMONITES,", "A", "REVIEW", "OF", "FLESH", "TURNED", "TO", "ROCK", "IN", "ANOTHER", "SURREAL", "MIRACLE"],
+            yellow: ["MILLIONS", "OF", "FOSSILS/", "BURIED", "IN", "ROCK", "LAYERS,", "LAID", "DOWN", "BY", "WATER/", "ALL", "OVER", "THE", "EARTH"],
+            blue: ["AGE", "5,", "I", "COMPOSED", "A", "SIX-FOOT", "JUMBO-SIZE", "PUZZLE,", "SUN'S", "EDGE", "TO", "THE", "LEFT", "PLUTO", "ON", "THE", "RIGHT."],
+            red: ["HE", "TAUHT", "ME", "IT", "TOOK", "GOD", "AS", "LONG", "AS", "ME", "TO", "ASSEMBLE", "THE", "SOLAR", "SYSTEM,", "THE", "STARS,", "THAT", "WORDS", "TAKE", "LITTLE", "TIME", "TO", "MAKE", "MIRACLES", "MAKING", "AND", "UNMAKING."]
+        };
+        
+        // State
+        let clickedWords = [];
+        let clickedStars = new Set();
+        let lines = [];
+        
+        // Get SVG dimensions
+        const svg = document.getElementById('starfield');
+        const updateSVGSize = () => {
+            svg.setAttribute('width', svg.clientWidth);
+            svg.setAttribute('height', svg.clientHeight);
+        };
+        updateSVGSize();
+        window.addEventListener('resize', updateSVGSize);
+        
+        // Scale factor to fit the spreadsheet grid to SVG canvas
+        const scaleX = svg.clientWidth / 65;
+        const scaleY = svg.clientHeight / 65;
+        
+        // Create stars
+        wordData.forEach((data, index) => {
+            const colorClass = colorMap[data.color] || 'white';
+            const x = data.x * scaleX;
+            const y = data.y * scaleY;
+            
+            const starGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            starGroup.classList.add('star', `color-${colorClass}`);
+            starGroup.dataset.index = index;
+            starGroup.dataset.word = data.word;
+            starGroup.dataset.color = colorClass;
+            starGroup.dataset.x = x;
+            starGroup.dataset.y = y;
+            
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', x);
+            circle.setAttribute('cy', y);
+            circle.setAttribute('r', 8);
+            circle.setAttribute('fill', 'currentColor');
+            circle.setAttribute('opacity', '0.8');
+            
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', x);
+            text.setAttribute('y', y - 12);
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('fill', 'currentColor');
+            text.setAttribute('font-size', '11');
+            text.setAttribute('font-weight', '500');
+            text.textContent = data.word;
+            
+            starGroup.appendChild(circle);
+            starGroup.appendChild(text);
+            svg.appendChild(starGroup);
+            
+            // Bring star to front on hover
+            starGroup.addEventListener('mouseenter', () => {
+                svg.appendChild(starGroup); // Re-append to move to end (front)
+            });
+            
+            starGroup.addEventListener('click', () => handleStarClick(starGroup));
+        });
+        
+        function handleStarClick(starElement) {
+            const index = starElement.dataset.index;
+            
+            // Don't click the same star twice
+            if (clickedStars.has(index)) return;
+            
+            const word = starElement.dataset.word;
+            const color = starElement.dataset.color;
+            const x = parseFloat(starElement.dataset.x);
+            const y = parseFloat(starElement.dataset.y);
+            
+            // Mark as clicked
+            clickedStars.add(index);
+            starElement.classList.add('clicked');
+            
+            // Add to clicked words
+            clickedWords.push({ word, color, x, y, index, element: starElement });
+            
+            // Draw line if there's a previous word (but not if previous item is a line break)
+            if (clickedWords.length > 1) {
+                const prev = clickedWords[clickedWords.length - 2];
+                
+                // Only draw line if previous item is not a line break
+                if (!prev.isLineBreak) {
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', prev.x);
+                    line.setAttribute('y1', prev.y);
+                    line.setAttribute('x2', x);
+                    line.setAttribute('y2', y);
+                    line.classList.add('connecting-line', `color-${color}`);
+                    svg.insertBefore(line, svg.firstChild); // Draw behind stars
+                    lines.push(line);
+                }
+            }
+            
+            // Update poem display
+            updatePoemDisplay();
+            
+            // Enable undo button
+            document.getElementById('undo-btn').disabled = false;
+            
+            // Check if constellation is complete
+            checkConstellationComplete(color);
+        }
+        
+        function updatePoemDisplay() {
+            const display = document.getElementById('poem-display');
+            const newLineBtn = document.getElementById('new-line-btn');
+            
+            if (clickedWords.length === 0) {
+                display.innerHTML = '<em style="opacity: 0.6;">Click the stars to compose the poem...</em>';
+                newLineBtn.disabled = true;
+            } else {
+                // Build text with line breaks
+                let text = '';
+                for (let i = 0; i < clickedWords.length; i++) {
+                    const wordObj = clickedWords[i];
+                    if (wordObj.isLineBreak) {
+                        text += '\n';
+                    } else {
+                        if (i > 0 && !clickedWords[i-1].isLineBreak) {
+                            text += ' ';
+                        }
+                        text += wordObj.word;
+                    }
+                }
+                display.textContent = text;
+                newLineBtn.disabled = false;
+            }
+        }
+        
+        function checkConstellationComplete(color) {
+            // Get all words of this color that have been clicked (excluding line breaks)
+            const colorWords = clickedWords.filter(w => !w.isLineBreak && w.color === color).map(w => w.word);
+            const solution = solutions[color];
+            
+            // Check if all words are clicked AND in correct order
+            if (colorWords.length === solution.length) {
+                const isCorrect = colorWords.every((word, i) => word === solution[i]);
+                if (isCorrect) {
+                    createShootingStar(color);
+                }
+            }
+        }
+        
+        function createShootingStar(color) {
+            // Create multiple shooting stars for dramatic effect
+            const numStars = 5;
+            const startX = Math.random() * svg.clientWidth * 0.3;
+            const startY = svg.clientHeight * 0.2 + Math.random() * svg.clientHeight * 0.2;
+            
+            for (let i = 0; i < numStars; i++) {
+                setTimeout(() => {
+                    // Main shooting star
+                    const star = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    star.setAttribute('cx', startX + Math.random() * 50);
+                    star.setAttribute('cy', startY + Math.random() * 50);
+                    star.setAttribute('r', 6 + Math.random() * 4);
+                    star.classList.add('shooting-star', `color-${color}`);
+                    svg.appendChild(star);
+                    
+                    // Create trail effect
+                    for (let j = 0; j < 3; j++) {
+                        setTimeout(() => {
+                            const trail = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                            trail.setAttribute('cx', star.getAttribute('cx'));
+                            trail.setAttribute('cy', star.getAttribute('cy'));
+                            trail.setAttribute('r', 3);
+                            trail.classList.add('star-trail', `color-${color}`);
+                            svg.appendChild(trail);
+                            setTimeout(() => trail.remove(), 2000);
+                        }, j * 100);
+                    }
+                    
+                    setTimeout(() => star.remove(), 2000);
+                }, i * 150);
+            }
+            
+            // Create burst effect at the origin
+            const burst = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            burst.setAttribute('cx', startX);
+            burst.setAttribute('cy', startY);
+            burst.setAttribute('r', 20);
+            burst.classList.add('star-burst', `color-${color}`);
+            burst.setAttribute('opacity', '0.3');
+            svg.appendChild(burst);
+            setTimeout(() => burst.remove(), 1000);
+        }
+        
+        function undo() {
+            if (clickedWords.length === 0) return;
+            
+            const lastWord = clickedWords.pop();
+            
+            // Only process star-related undo if it's not a line break
+            if (!lastWord.isLineBreak) {
+                clickedStars.delete(lastWord.index);
+                lastWord.element.classList.remove('clicked');
+                
+                // Remove last line
+                if (lines.length > 0) {
+                    const lastLine = lines.pop();
+                    lastLine.remove();
+                }
+            }
+            
+            updatePoemDisplay();
+            
+            if (clickedWords.length === 0) {
+                document.getElementById('undo-btn').disabled = true;
+            }
+        }
+        
+        function newLine() {
+            if (clickedWords.length === 0) return;
+            
+            // Add a line break marker to the clicked words
+            clickedWords.push({ word: '\n', isLineBreak: true });
+            
+            updatePoemDisplay();
+        }
+        
+        function reset() {
+            // Clear all clicked states
+            clickedWords.forEach(w => {
+                if (w.element) {
+                    w.element.classList.remove('clicked');
+                }
+            });
+            clickedWords = [];
+            clickedStars.clear();
+            
+            // Remove all lines
+            lines.forEach(line => line.remove());
+            lines = [];
+            
+            updatePoemDisplay();
+            document.getElementById('undo-btn').disabled = true;
+            document.getElementById('new-line-btn').disabled = true;
+        }
+        
+        function showSolution() {
+            document.getElementById('solution-overlay').style.display = 'flex';
+        }
+        
+        function hideSolution() {
+            document.getElementById('solution-overlay').style.display = 'none';
+        }
+        
+        // Event listeners
+        document.getElementById('undo-btn').addEventListener('click', undo);
+        document.getElementById('new-line-btn').addEventListener('click', newLine);
+        document.getElementById('reset-btn').addEventListener('click', reset);
+        document.getElementById('show-solution-btn').addEventListener('click', showSolution);
+        document.getElementById('close-solution').addEventListener('click', hideSolution);
+        document.getElementById('solution-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'solution-overlay') hideSolution();
+        });
+    </script>
+</body>
+</html>
